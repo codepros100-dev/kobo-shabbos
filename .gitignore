@@ -14,6 +14,9 @@ generator/fonts/*.ttf
 library/cache/
 library/output/
 
+# Local deploy workspace (NickelMenu .tgz, fbink binary pulled from KOReader, ad-hoc test downloads)
+_downloads/
+
 # OS
 Thumbs.db
 .DS_Store

@@ -48,42 +48,39 @@ The published URL is:
 https://raw.githubusercontent.com/<your-user>/kobo-shabbos/dashboard/dashboard.png
 ```
 
-### 2. Install KFMon on the Kobo (one time, ~5 min)
+### 2. Install everything on the Kobo (~1 min, one eject)
 
-1. Plug the Kobo in via USB and accept "Connect".
-2. Download the latest **`KoboRoot.tgz`** from
-   <https://github.com/NiLuJe/kfmon/releases> (file is ~600 KB).
-3. Drop it into the Kobo's `.kobo/` folder (which is hidden — enable
-   "show hidden files" in Explorer).
-4. Eject the Kobo. The device shows an "Updating…" screen for ~30 seconds and
-   reboots. KFMon is now installed.
-
-### 3. Install the dashboard scripts (one time, 1 min)
-
-Plug the Kobo in again, then on your PC:
+The deploy script does it all: drops NickelMenu's `KoboRoot.tgz` in `.kobo/`,
+extracts an `fbink` binary from the latest KOReader release, copies our
+shell scripts + a NickelMenu config + the EPUB library to the device.
 
 ```powershell
-cd C:\Users\chaim\kobo-shabbos\kobo\install
-powershell -ExecutionPolicy Bypass -File .\install-on-kobo.ps1
+cd C:\Users\chaim\kobo-shabbos
+powershell -ExecutionPolicy Bypass -File .\deploy.ps1
 ```
 
-The script auto-detects the Kobo drive, prompts for your dashboard URL, and
-copies everything into place. Eject when it finishes.
+When it finishes, **safely eject the Kobo from Windows.** On disconnect the
+device shows "Updating…" for ~30 s, reboots, and NickelMenu is installed.
 
-### 4. Configure WiFi on the Kobo
+### 3. Configure WiFi on the Kobo
 
-In Nickel: **Settings → Wireless connection** → join your home network. Once
-connected, the Kobo will reconnect automatically whenever it's powered on.
+In Nickel: **Settings → Wireless connection** → join your home network.
 
-### 5. Start the dashboard
+### 4. Start the dashboard
 
-Open the library on the Kobo. There's a new book called **`Dashboard`**.
-Tap it. After ~5 seconds the e-ink screen repaints with the latest PNG.
-The loop runs in the background until reboot, refreshing once an hour.
+Open Nickel's hamburger menu (top-left of home, or the tabs row on newer
+firmware). You'll see three new entries:
 
-> After a reboot you tap `Dashboard` once to relaunch the loop. To make it
-> truly start on boot you'd need to patch `/etc/init.d/rcS`, which is more
-> invasive and risks breaking on Kobo firmware updates — I'd skip it.
+- **Shabbos Dashboard** — starts the long-running loop (one tap per reboot).
+- **Refresh Dashboard** — force-refresh now.
+- **Stop Dashboard** — kill the loop cleanly.
+
+Tap **Shabbos Dashboard**. The e-ink screen repaints with the live PNG within
+about 5 seconds. The loop refreshes once an hour automatically.
+
+> The loop ends when the Kobo reboots; tap **Shabbos Dashboard** again to
+> restart. True boot autostart would require patching `/etc/init.d/rcS`,
+> which we don't do — Kobo firmware updates would clobber it.
 
 ---
 
