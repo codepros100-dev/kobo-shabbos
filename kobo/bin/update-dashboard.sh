@@ -28,6 +28,14 @@ mkdir -p "$CACHE_DIR"
 ts()  { date '+%F %T'; }
 log() { echo "$(ts) $*" >> "$LOG"; }
 
+# /mnt/onboard is FAT32 and may not preserve the +x bit. Copy fbink to /tmp
+# (tmpfs, always executable) the first time we run, then use that.
+TMP_FBINK="/tmp/fbink-dashboard"
+if [ -f "$FBINK" ] && [ ! -x "$TMP_FBINK" ]; then
+    cp "$FBINK" "$TMP_FBINK" 2>/dev/null && chmod +x "$TMP_FBINK" 2>/dev/null
+fi
+[ -x "$TMP_FBINK" ] && FBINK="$TMP_FBINK"
+
 render() {
     img="$1"
     if [ -x "$FBINK" ]; then
