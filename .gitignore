@@ -17,6 +17,9 @@ library/output/
 # Local deploy workspace (NickelMenu .tgz, fbink binary pulled from KOReader, ad-hoc test downloads)
 _downloads/
 
+# Library run logs
+library/download.log
+
 # OS
 Thumbs.db
 .DS_Store
