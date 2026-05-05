@@ -1,10 +1,8 @@
 #!/bin/sh
 # dashboard-loop.sh — long-running loop that refreshes the dashboard.
-# Run from KFMon at boot or via NickelMenu.
-#
-# It does NOT kill Nickel; Nickel keeps managing WiFi and power. We just
-# repaint the framebuffer on top. After a Nickel screen change the user can
-# re-launch us via the Dashboard icon (KFMon trigger).
+# Launched in the background by NickelMenu (cmd_spawn) when the user taps
+# the Dashboard menu item. Stays alive until reboot or until the file
+# /mnt/onboard/.adds/dashboard/STOP is touched.
 
 set -u
 
@@ -12,53 +10,49 @@ DIR="$(dirname "$(readlink -f "$0")")"
 CONF="$DIR/dashboard.conf"
 [ -f "$CONF" ] && . "$CONF"
 
-: "${REFRESH_SECONDS:=3600}"   # how often to fetch & redraw (1 hour)
-: "${REPAINT_SECONDS:=300}"    # how often to repaint the cached image
-: "${WIFI_WAIT_SECONDS:=120}"  # how long to wait for WiFi after boot
-: "${LOG:=/mnt/onboard/.adds/dashboard/cache/dashboard.log}"
+: "${REFRESH_SECONDS:=3600}"   # one refresh per hour
+: "${WIFI_WAIT_SECONDS:=120}"
+: "${CACHE_DIR:=/mnt/onboard/.adds/dashboard/cache}"
+: "${LOG:=$CACHE_DIR/dashboard.log}"
+: "${STOP_FILE:=/mnt/onboard/.adds/dashboard/STOP}"
 
-mkdir -p "$(dirname "$LOG")"
-ts() { date '+%F %T'; }
+mkdir -p "$CACHE_DIR"
+ts()  { date '+%F %T'; }
 log() { echo "$(ts) loop: $*" >> "$LOG"; }
 
-# Wait for WiFi (interface up + a usable default route).
+PID_FILE="$CACHE_DIR/loop.pid"
+if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    log "another loop already running (pid $(cat "$PID_FILE")); exiting"
+    exit 0
+fi
+echo $$ > "$PID_FILE"
+trap 'rm -f "$PID_FILE"' EXIT INT TERM
+
 wait_for_wifi() {
     waited=0
     while [ $waited -lt "$WIFI_WAIT_SECONDS" ]; do
-        if ip route | grep -q '^default '; then
-            log "wifi ready (waited ${waited}s)"
+        if ip route 2>/dev/null | grep -q '^default '; then
+            log "wifi ready after ${waited}s"
             return 0
         fi
         sleep 5
         waited=$((waited + 5))
     done
-    log "wifi NOT ready after ${WIFI_WAIT_SECONDS}s, will try anyway"
+    log "wifi not ready after ${WIFI_WAIT_SECONDS}s; trying anyway"
     return 1
 }
 
-log "boot. PID=$$"
+log "loop start, pid=$$"
 wait_for_wifi || true
+"$DIR/update-dashboard.sh" || log "initial update rc=$?"
 
-# Initial fetch + render
-"$DIR/update-dashboard.sh" || log "initial update returned $?"
-
-last_fetch=$(date +%s)
 while :; do
-    sleep "$REPAINT_SECONDS"
-    now=$(date +%s)
-    if [ $((now - last_fetch)) -ge "$REFRESH_SECONDS" ]; then
-        wait_for_wifi || true
-        if "$DIR/update-dashboard.sh"; then
-            last_fetch=$now
-        else
-            log "fetch failed, will retry next cycle"
-        fi
-    else
-        # Just repaint the cached PNG so any Nickel redraw gets covered
-        if [ -s /mnt/onboard/.adds/dashboard/cache/dashboard.png ]; then
-            "${FBINK:-$DIR/fbink}" -q -c \
-                -g file=/mnt/onboard/.adds/dashboard/cache/dashboard.png,halign=CENTER,valign=CENTER \
-                >>"$LOG" 2>&1 || log "repaint failed"
-        fi
+    if [ -f "$STOP_FILE" ]; then
+        log "STOP file present, exiting"
+        rm -f "$STOP_FILE"
+        exit 0
     fi
+    sleep "$REFRESH_SECONDS"
+    wait_for_wifi || true
+    "$DIR/update-dashboard.sh" || log "update rc=$?"
 done
