@@ -1,0 +1,16 @@
+{
+  "_comment": "Copy to config.json and fill in. If latitude/longitude are null, the GitHub Action will use ip-api on the runner (will not match your home). Set them explicitly.",
+  "location": {
+    "city_label": "Brooklyn, NY",
+    "latitude": 40.6782,
+    "longitude": -73.9442,
+    "timezone": "America/New_York",
+    "geonameid": 5110302,
+    "candle_lighting_minutes": 18
+  },
+  "display": {
+    "width": 1072,
+    "height": 1448,
+    "rotate": 0
+  }
+}

@@ -1,0 +1,17 @@
+# dashboard.conf — sourced by update-dashboard.sh and dashboard-loop.sh.
+# Copy to dashboard.conf and edit. Lives next to the scripts on the Kobo at
+# /mnt/onboard/.adds/dashboard/dashboard.conf
+
+# Raw URL of the published PNG. If using GitHub Actions, this is the
+# raw-content URL of the dashboard branch, e.g.:
+#   https://raw.githubusercontent.com/<user>/<repo>/dashboard/dashboard.png
+DASHBOARD_URL="https://raw.githubusercontent.com/REPLACE_ME/REPLACE_ME/dashboard/dashboard.png"
+
+# How often to pull a fresh image (seconds). Default 3600 (1h).
+REFRESH_SECONDS=3600
+
+# How often to repaint the cached image to cover any Nickel redraws.
+REPAINT_SECONDS=300
+
+# How long to wait for WiFi after boot (seconds).
+WIFI_WAIT_SECONDS=120

@@ -1,0 +1,58 @@
+name: publish-dashboard
+
+on:
+  schedule:
+    # Hourly at :07 to spread load. UTC.
+    - cron: "7 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "generator/**"
+      - ".github/workflows/publish-dashboard.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-dashboard
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: generator/requirements.txt
+
+      - name: Install deps
+        run: pip install -r generator/requirements.txt
+
+      - name: Render dashboard
+        env:
+          # The repo's config.json is what runs in CI. Edit it (committed).
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python generator/generate_dashboard.py \
+            --config generator/config.json \
+            --out dashboard.png
+
+      - name: Publish to dashboard branch
+        run: |
+          git config user.name  "kobo-bot"
+          git config user.email "kobo-bot@users.noreply.github.com"
+
+          # orphan branch holding only the latest PNG
+          git checkout --orphan dashboard
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          # remove everything from the working tree except the artifact
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name dashboard.png ! -name .git -exec rm -rf {} +
+          git add dashboard.png
+          git commit -m "dashboard: $(date -u +%FT%TZ)" || echo "no changes"
+          git push --force origin dashboard

@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Local config (location-specific) — DO commit if you want CI to use it
+# generator/config.json   <-- keep committed; CI reads it
+
+# Generated artifacts
+generator/dashboard.png
+generator/fonts/*.ttf
+library/cache/
+library/output/
+
+# OS
+Thumbs.db
+.DS_Store

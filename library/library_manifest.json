@@ -1,0 +1,35 @@
+{
+  "_comment": "Edit to taste; download_library.py reads this. Each Sefaria index name must match Sefaria exactly (case- and spelling-sensitive).",
+
+  "tanakh": [
+    "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy",
+    "Joshua", "Judges", "I Samuel", "II Samuel", "I Kings", "II Kings",
+    "Isaiah", "Jeremiah", "Ezekiel",
+    "Hosea", "Joel", "Amos", "Obadiah", "Jonah", "Micah",
+    "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
+    "Psalms", "Proverbs", "Job",
+    "Song of Songs", "Ruth", "Lamentations", "Ecclesiastes", "Esther",
+    "Daniel", "Ezra", "Nehemiah", "I Chronicles", "II Chronicles"
+  ],
+
+  "shas_bavli": [
+    "Berakhot",
+    "Shabbat", "Eruvin", "Pesachim", "Jerusalem Talmud Shekalim", "Yoma", "Sukkah",
+    "Beitzah", "Rosh Hashanah", "Taanit", "Megillah", "Moed Katan", "Chagigah",
+    "Yevamot", "Ketubot", "Nedarim", "Nazir", "Sotah", "Gittin", "Kiddushin",
+    "Bava Kamma", "Bava Metzia", "Bava Batra",
+    "Sanhedrin", "Makkot", "Shevuot", "Avodah Zarah", "Horayot",
+    "Zevachim", "Menachot", "Chullin", "Bekhorot", "Arakhin", "Temurah",
+    "Keritot", "Meilah", "Tamid", "Niddah"
+  ],
+
+  "siddur": [
+    {
+      "title": "Siddur Ashkenaz (Sefaria)",
+      "sefaria_index": "Siddur Ashkenaz"
+    }
+  ],
+
+  "languages": ["he", "en"],
+  "_languages_help": "he = Hebrew (no translation), en = with English. Both produces a bilingual EPUB."
+}

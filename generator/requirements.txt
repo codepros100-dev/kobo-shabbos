@@ -1,0 +1,4 @@
+Pillow>=10.2.0
+requests>=2.31.0
+tzdata>=2024.1
+ebooklib>=0.18
