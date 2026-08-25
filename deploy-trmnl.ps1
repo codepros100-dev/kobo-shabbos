@@ -141,11 +141,12 @@ menu_item :main :Shabbos Display :cmd_spawn :sh /mnt/onboard/.adds/TRMNL/trmnl.s
 "@ -replace "`r`n","`n"
 [IO.File]::WriteAllBytes((Join-Path $nmDir "trmnl"), [Text.Encoding]::UTF8.GetBytes($nmCfg))
 
-# retire the old SIGSTOP-based menu entries if present
+# retire the old SIGSTOP-based menu entries if present. NickelMenu parses
+# every file in .adds\nm, so the old config must leave the folder entirely.
 $oldNm = Join-Path $nmDir "dashboard"
 if (Test-Path $oldNm) {
-    Rename-Item -Force $oldNm "$oldNm.disabled"
-    Write-Host "  [4/4] NickelMenu entry added; old 'dashboard' menu disabled"
+    Move-Item -Force $oldNm (Join-Path $KoboDrive ".adds\dashboard\nm-dashboard.bak")
+    Write-Host "  [4/4] NickelMenu entry added; old 'dashboard' menu retired"
 } else {
     Write-Host "  [4/4] NickelMenu entry added"
 }
