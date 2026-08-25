@@ -39,20 +39,25 @@ FONT_URLS = {
     "hebrew_bold": "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansHebrew/NotoSansHebrew-Bold.ttf",
 }
 
-# WMO weather codes -> short text (Open-Meteo)
-WMO = {
-    0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast",
-    45: "Fog", 48: "Rime fog",
-    51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle",
-    56: "Freezing drizzle", 57: "Freezing drizzle",
-    61: "Light rain", 63: "Rain", 65: "Heavy rain",
-    66: "Freezing rain", 67: "Freezing rain",
-    71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains",
-    80: "Showers", 81: "Heavy showers", 82: "Violent showers",
-    85: "Snow showers", 86: "Heavy snow showers",
-    95: "Thunderstorm", 96: "Thunderstorm + hail", 99: "Thunderstorm + hail",
+# WMO weather codes -> Hebrew short text (Open-Meteo).
+WMO_HE = {
+    0: "בהיר", 1: "בהיר ברובו", 2: "מעונן חלקית", 3: "מעונן",
+    45: "ערפל", 48: "ערפל",
+    51: "טפטוף", 53: "טפטוף", 55: "טפטוף כבד",
+    56: "טפטוף קופא", 57: "טפטוף קופא",
+    61: "גשם קל", 63: "גשם", 65: "גשם כבד",
+    66: "גשם קופא", 67: "גשם קופא",
+    71: "שלג קל", 73: "שלג", 75: "שלג כבד", 77: "גרגרי שלג",
+    80: "ממטרים", 81: "ממטרים כבדים", 82: "ממטרים סוערים",
+    85: "ממטרי שלג", 86: "ממטרי שלג כבדים",
+    95: "סופת רעמים", 96: "ברד ורעמים", 99: "ברד ורעמים",
 }
 WET_CODES = set(range(51, 68)) | set(range(80, 83)) | {95, 96, 99}
+
+HEB_WEEKDAY = {
+    0: "יום שני", 1: "יום שלישי", 2: "יום רביעי", 3: "יום חמישי",
+    4: "יום שישי", 5: "שבת", 6: "יום ראשון",
+}
 
 
 @dataclass
@@ -250,70 +255,79 @@ def render(cfg: dict[str, Any], out_path: Path) -> None:
     c = Canvas(disp["width"], disp["height"], fonts)
 
     # ---- Header ----
-    header_y = 50
-    c.text((c.w // 2, header_y),
-           now.strftime("%A, %B %-d, %Y") if os.name != "nt"
-           else now.strftime("%A, %B %#d, %Y"),
-           c.f("sans_bold", 44), anchor="ma")
+    # Hebrew font has no Latin glyphs and Latin font has no Hebrew, so we
+    # stack each line in its own font instead of mixing them.
+    header_y = 40
+    weekday_he = HEB_WEEKDAY.get(now.weekday(), "")
+    c.text((c.w // 2, header_y), weekday_he,
+           c.f("hebrew_bold", 56), anchor="ma")
+
+    gregorian = (now.strftime("%-d/%-m/%Y") if os.name != "nt"
+                 else now.strftime("%#d/%#m/%Y"))
+    c.text((c.w // 2, header_y + 75), gregorian,
+           c.f("sans", 36), anchor="ma")
 
     heb = hd.get("hebrew", "")
     if heb:
-        c.text((c.w // 2, header_y + 65), heb,
-               c.f("hebrew", 50), anchor="ma")
+        c.text((c.w // 2, header_y + 130), heb,
+               c.f("hebrew", 56), anchor="ma")
 
-    c.text((c.w // 2, header_y + 130), loc.city_label,
-           c.f("sans", 32), anchor="ma")
+    city_he = cfg.get("city_he") or "ברוקלין"
+    c.text((c.w // 2, header_y + 200), city_he,
+           c.f("hebrew", 36), anchor="ma")
 
-    c.hline(header_y + 195)
+    c.hline(header_y + 250)
 
     # ---- Shabbos block ----
-    y = header_y + 235
-    c.text((c.w // 2, y), "Shabbos", c.f("sans_bold", 56), anchor="ma")
-    if si["parsha"]:
-        line = f"Parshas {si['parsha']}"
-        c.text((c.w // 2, y + 80), line, c.f("sans", 40), anchor="ma")
+    y = header_y + 290
+    c.text((c.w // 2, y), "שבת", c.f("hebrew_bold", 64), anchor="ma")
     if si["parsha_he"]:
-        c.text((c.w // 2, y + 135), si["parsha_he"],
-               c.f("hebrew_bold", 48), anchor="ma")
+        c.text((c.w // 2, y + 90), si["parsha_he"],
+               c.f("hebrew_bold", 52), anchor="ma")
 
     # Big times
-    times_y = y + 230
+    times_y = y + 175
     box_w = (c.w - 120) // 2
     pad = 40
 
     def time_box(x0, label, value):
         c.rect((x0, times_y, x0 + box_w, times_y + 240), outline=0, width=3)
         c.text((x0 + box_w // 2, times_y + 30), label,
-               c.f("sans_bold", 36), anchor="ma")
+               c.f("hebrew_bold", 38), anchor="ma")
         c.text((x0 + box_w // 2, times_y + 100), value,
                c.f("sans_bold", 96), anchor="ma")
 
     candles = (fmt_time(si["candles"], tz) if si["candles"] else "—")
-    time_box(pad, "Candle Lighting", candles)
+    # Right box (visually first in RTL) = הדלקת נרות
+    time_box(pad + box_w + pad, "הדלקת נרות", candles)
 
     rt_str = fmt_time(rt, tz) if rt else "—"
-    time_box(pad + box_w + pad, "Rabbeinu Tam", rt_str)
+    time_box(pad, "רבינו תם", rt_str)
 
     if si["havdalah"]:
         hav = fmt_time(si["havdalah"], tz)
-        c.text((c.w // 2, times_y + 270),
-               f"Standard havdalah (motzei Shabbos): {hav}",
-               c.f("sans", 28), anchor="ma")
+        c.text((c.w // 2, times_y + 270), "הבדלה",
+               c.f("hebrew", 32), anchor="ma")
+        c.text((c.w // 2, times_y + 305), hav,
+               c.f("sans_bold", 36), anchor="ma")
 
     # ---- Weather block ----
-    wy = times_y + 330
+    wy = times_y + 380
     c.hline(wy)
-    wy += 30
-    c.text((c.w // 2, wy), "Weather", c.f("sans_bold", 48), anchor="ma")
+    wy += 25
+    c.text((c.w // 2, wy), "מזג האוויר", c.f("hebrew_bold", 50), anchor="ma")
 
     cur = weather.get("current", {})
     cur_t = cur.get("temperature_2m")
     cur_code = cur.get("weather_code", 0)
-    cur_label = WMO.get(cur_code, "—")
+    cur_label = WMO_HE.get(cur_code, "—")
     if cur_t is not None:
-        c.text((c.w // 2, wy + 75),
-               f"{cur_t:.0f}°C   {cur_label}",
-               c.f("sans", 44), anchor="ma")
+        # Number + Hebrew label stacked.
+        c.text((c.w // 2, wy + 65),
+               f"{cur_t:.0f}°C",
+               c.f("sans_bold", 44), anchor="ma")
+        c.text((c.w // 2, wy + 115), cur_label,
+               c.f("hebrew", 36), anchor="ma")
 
     # Hourly forecast — next 12 hours
     hourly = weather.get("hourly", {})
@@ -333,7 +347,7 @@ def render(cfg: dict[str, Any], out_path: Path) -> None:
     hours = list(range(start_idx, min(start_idx + 12, len(times))))
     if hours:
         col_w = (c.w - 80) // len(hours)
-        chart_top = wy + 160
+        chart_top = wy + 180
         chart_h = 280
         chart_bot = chart_top + chart_h
 
@@ -378,21 +392,17 @@ def render(cfg: dict[str, Any], out_path: Path) -> None:
             if pop is not None:
                 c.text((x, chart_top + 130), f"{int(pop)}%",
                        c.f("sans", 28), fill=txt_fill, anchor="ma")
-            # weather word, abbreviated
-            label = WMO.get(code, "")
+            # weather word in Hebrew
+            label = WMO_HE.get(code, "")
             if label:
-                short = label.split()[0][:6]
+                short = label[:5]
                 c.text((x, chart_top + 180), short,
-                       c.f("sans", 22), fill=txt_fill, anchor="ma")
+                       c.f("hebrew", 22), fill=txt_fill, anchor="ma")
 
-        # Legend / footer
-        c.text((c.w // 2, chart_bot + 25),
-               "Black columns = rain / precipitation expected",
-               c.f("sans", 22), anchor="ma")
-
-    # ---- Footer: last update ----
-    footer = f"Updated {now.strftime('%a %b %d %H:%M %Z')}"
-    c.text((c.w // 2, c.h - 40), footer, c.f("sans", 22), anchor="ma")
+    # ---- Footer: last update (Latin only — Hebrew "עודכן" caused overlap) ----
+    c.text((c.w // 2, c.h - 30),
+           now.strftime("%H:%M  %d/%m/%Y"),
+           c.f("sans", 24), anchor="ma")
 
     # rotate if requested
     if disp.get("rotate", 0):

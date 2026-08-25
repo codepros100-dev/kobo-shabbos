@@ -35,24 +35,38 @@ jobs:
 
       - name: Render dashboard
         env:
-          # The repo's config.json is what runs in CI. Edit it (committed).
           PYTHONUNBUFFERED: "1"
         run: |
           python generator/generate_dashboard.py \
             --config generator/config.json \
             --out dashboard.png
 
+      # TRMNL BYOS endpoint: the Kobo's TRMNL client GETs <TrmnlApiUrl>/display
+      # and expects JSON with image_url + refresh_rate. Serving it as a static
+      # file from the dashboard branch means no server is needed.
+      - name: Write TRMNL display JSON
+        run: |
+          cat > display <<'EOF'
+          {
+            "status": 0,
+            "image_url": "https://raw.githubusercontent.com/codepros100-dev/kobo-shabbos/dashboard/dashboard.png",
+            "filename": "dashboard",
+            "refresh_rate": 3600,
+            "reset_firmware": false,
+            "update_firmware": false
+          }
+          EOF
+
       - name: Publish to dashboard branch
         run: |
           git config user.name  "kobo-bot"
           git config user.email "kobo-bot@users.noreply.github.com"
 
-          # orphan branch holding only the latest PNG
+          # orphan branch holding only the latest artifacts
           git checkout --orphan dashboard
           git rm -rf --cached . >/dev/null 2>&1 || true
-          # remove everything from the working tree except the artifact
           find . -mindepth 1 -maxdepth 1 \
-            ! -name dashboard.png ! -name .git -exec rm -rf {} +
-          git add dashboard.png
+            ! -name dashboard.png ! -name display ! -name .git -exec rm -rf {} +
+          git add dashboard.png display
           git commit -m "dashboard: $(date -u +%FT%TZ)" || echo "no changes"
           git push --force origin dashboard

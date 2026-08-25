@@ -23,3 +23,5 @@ library/download.log
 # OS
 Thumbs.db
 .DS_Store
+generator/test_dashboard.png
+library/*.log

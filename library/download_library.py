@@ -43,6 +43,118 @@ ROOT = Path(__file__).parent
 CACHE = ROOT / "cache"
 OUT = ROOT / "output"
 MANIFEST = ROOT / "library_manifest.json"
+FONT_DIR = ROOT.parent / "generator" / "fonts"
+
+
+# ---------------------------------------------------------------------------
+# Hebrew title mapping. Sefaria index name -> shem ha-sefer in Hebrew.
+# Used both as the EPUB dc:title (so the home screen list shows Hebrew) and
+# as the chapter heading in each section.
+# ---------------------------------------------------------------------------
+HEBREW_TITLES = {
+    # Tanakh
+    "Genesis": "בראשית", "Exodus": "שמות", "Leviticus": "ויקרא",
+    "Numbers": "במדבר", "Deuteronomy": "דברים",
+    "Joshua": "יהושע", "Judges": "שופטים",
+    "I Samuel": "שמואל א", "II Samuel": "שמואל ב",
+    "I Kings": "מלכים א", "II Kings": "מלכים ב",
+    "Isaiah": "ישעיה", "Jeremiah": "ירמיה", "Ezekiel": "יחזקאל",
+    "Hosea": "הושע", "Joel": "יואל", "Amos": "עמוס",
+    "Obadiah": "עובדיה", "Jonah": "יונה", "Micah": "מיכה",
+    "Nahum": "נחום", "Habakkuk": "חבקוק", "Zephaniah": "צפניה",
+    "Haggai": "חגי", "Zechariah": "זכריה", "Malachi": "מלאכי",
+    "Psalms": "תהילים", "Proverbs": "משלי", "Job": "איוב",
+    "Song of Songs": "שיר השירים", "Ruth": "רות",
+    "Lamentations": "איכה", "Ecclesiastes": "קהלת", "Esther": "אסתר",
+    "Daniel": "דניאל", "Ezra": "עזרא", "Nehemiah": "נחמיה",
+    "I Chronicles": "דברי הימים א", "II Chronicles": "דברי הימים ב",
+    # Shas Bavli
+    "Berakhot": "ברכות", "Shabbat": "שבת", "Eruvin": "עירובין",
+    "Pesachim": "פסחים", "Yoma": "יומא", "Sukkah": "סוכה",
+    "Beitzah": "ביצה", "Rosh Hashanah": "ראש השנה",
+    "Taanit": "תענית", "Megillah": "מגילה", "Moed Katan": "מועד קטן",
+    "Chagigah": "חגיגה",
+    "Yevamot": "יבמות", "Ketubot": "כתובות", "Nedarim": "נדרים",
+    "Nazir": "נזיר", "Sotah": "סוטה", "Gittin": "גיטין",
+    "Kiddushin": "קידושין",
+    "Bava Kamma": "בבא קמא", "Bava Metzia": "בבא מציעא",
+    "Bava Batra": "בבא בתרא",
+    "Sanhedrin": "סנהדרין", "Makkot": "מכות", "Shevuot": "שבועות",
+    "Avodah Zarah": "עבודה זרה", "Horayot": "הוריות",
+    "Zevachim": "זבחים", "Menachot": "מנחות", "Chullin": "חולין",
+    "Bekhorot": "בכורות", "Arakhin": "ערכין", "Temurah": "תמורה",
+    "Keritot": "כריתות", "Meilah": "מעילה", "Tamid": "תמיד",
+    "Niddah": "נדה",
+    # Yerushalmi
+    "Jerusalem Talmud Shekalim": "שקלים (ירושלמי)",
+    # Siddur
+    "Siddur Ashkenaz": "סידור אשכנז",
+}
+
+
+def hebrew_title(english_title: str) -> str:
+    """Return shem ha-sefer in Hebrew, fall back to English."""
+    return HEBREW_TITLES.get(english_title, english_title)
+
+
+# ---------------------------------------------------------------------------
+# Embedded font + CSS. Without an embedded Hebrew font, Kobo's reader picks
+# its default UI font, which has no Hebrew glyphs -- so Hebrew text shows
+# up as blank squares / question marks.
+# ---------------------------------------------------------------------------
+EPUB_CSS = """\
+@font-face {
+  font-family: "NotoSansHebrew";
+  font-weight: normal;
+  font-style: normal;
+  src: url("NotoSansHebrew-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "NotoSansHebrew";
+  font-weight: bold;
+  font-style: normal;
+  src: url("NotoSansHebrew-Bold.ttf") format("truetype");
+}
+
+body, p, h1, h2, h3, div, span {
+  font-family: "NotoSansHebrew", serif;
+}
+[lang="he"], [dir="rtl"] {
+  font-family: "NotoSansHebrew", serif;
+  direction: rtl;
+  text-align: right;
+}
+sup { font-family: "NotoSansHebrew", sans-serif; font-size: 0.7em; }
+h1, h2 { text-align: center; }
+"""
+
+
+def _add_font_css(book: epub.EpubBook) -> str:
+    """Attach the Hebrew font + stylesheet to the EPUB. Returns the CSS href."""
+    for ttf_name, file_name in [
+        ("hebrew.ttf",      "NotoSansHebrew-Regular.ttf"),
+        ("hebrew_bold.ttf", "NotoSansHebrew-Bold.ttf"),
+    ]:
+        font_path = FONT_DIR / ttf_name
+        if not font_path.exists():
+            print(f"  WARN: missing {font_path}", file=sys.stderr)
+            continue
+        item = epub.EpubItem(
+            uid=file_name.replace("-", "_").replace(".ttf", ""),
+            file_name=file_name,
+            media_type="application/x-font-ttf",
+            content=font_path.read_bytes(),
+        )
+        book.add_item(item)
+
+    css_item = epub.EpubItem(
+        uid="style",
+        file_name="style.css",
+        media_type="text/css",
+        content=EPUB_CSS.encode("utf-8"),
+    )
+    book.add_item(css_item)
+    return "style.css"
 
 
 # ---------------------------------------------------------------------------
@@ -188,13 +300,24 @@ def section_html(label: str, he_block, en_block, lang: str) -> str:
 # ---------------------------------------------------------------------------
 # EPUB
 # ---------------------------------------------------------------------------
+def _xhtml_with_css(label: str, body_html: str) -> str:
+    return (
+        '<html xmlns="http://www.w3.org/1999/xhtml" lang="he" xml:lang="he">'
+        f'<head><title>{escape(label)}</title>'
+        '<link rel="stylesheet" type="text/css" href="style.css"/>'
+        '</head><body dir="rtl">' + body_html + '</body></html>'
+    )
+
+
 def build_epub_from_bulk(title: str, data: dict, lang: str,
                          out_path: Path, *, license_note: str = "") -> None:
+    he_title = hebrew_title(title)
     book = epub.EpubBook()
     book.set_identifier(f"kobo-shabbos:{slug(title)}:{lang}")
-    book.set_title(title)
+    book.set_title(he_title if lang == "he" else title)
     book.set_language("he" if lang == "he" else "en")
-    book.add_author("Sefaria community + classic editions (see About)")
+    book.add_author("Sefaria")
+    _add_font_css(book)
 
     labels = section_labels(data)
     he = data.get("he") or []
@@ -215,21 +338,19 @@ def build_epub_from_bulk(title: str, data: dict, lang: str,
             lang="he" if lang == "he" else "en",
         )
         body = section_html(labels[i], he_block, en_block, lang)
-        ch.content = (
-            f'<html xmlns="http://www.w3.org/1999/xhtml"><head>'
-            f'<title>{escape(labels[i])}</title></head><body>{body}</body></html>'
-        )
+        ch.content = _xhtml_with_css(labels[i], body)
+        ch.add_item(book.get_item_with_id("style"))
         book.add_item(ch)
         chapters.append(ch)
 
     about = epub.EpubHtml(title="About", file_name="about.xhtml")
-    about.content = (
-        '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>About</title></head><body>'
-        f"<h1>{escape(title)}</h1>"
+    about.content = _xhtml_with_css(
+        "About",
+        f"<h1>{escape(he_title)}</h1>"
+        f"<p>{escape(title)}</p>"
         f"<p>Sections included: {nonempty} of {n}.</p>"
         f"<p>Source: <a href=\"https://www.sefaria.org\">Sefaria</a> public API.</p>"
-        f"<p>{escape(license_note) or 'See sefaria.org/terms for licensing.'}</p>"
-        "</body></html>"
+        f"<p>{escape(license_note) or 'See sefaria.org/terms for licensing.'}</p>",
     )
     book.add_item(about)
 
@@ -246,11 +367,13 @@ def build_epub_from_bulk(title: str, data: dict, lang: str,
 def build_epub_from_complex(title: str, meta: dict, lang: str,
                             out_path: Path, *,
                             license_note: str = "") -> None:
+    he_title = hebrew_title(title)
     book = epub.EpubBook()
     book.set_identifier(f"kobo-shabbos:{slug(title)}:{lang}")
-    book.set_title(title)
+    book.set_title(he_title if lang == "he" else title)
     book.set_language("he" if lang == "he" else "en")
-    book.add_author("Sefaria community")
+    book.add_author("Sefaria")
+    _add_font_css(book)
 
     leaves = schema_leaves(title, meta.get("schema", {}))
     print(f"  {len(leaves)} leaf sections", file=sys.stderr)
@@ -279,22 +402,20 @@ def build_epub_from_complex(title: str, meta: dict, lang: str,
             lang="he" if lang == "he" else "en",
         )
         body = section_html(leaf_label, he, en, lang)
-        ch.content = (
-            f'<html xmlns="http://www.w3.org/1999/xhtml"><head>'
-            f'<title>{escape(leaf_label)}</title></head><body>{body}</body></html>'
-        )
+        ch.content = _xhtml_with_css(leaf_label, body)
+        ch.add_item(book.get_item_with_id("style"))
         book.add_item(ch)
         chapters.append(ch)
         toc_groups.setdefault(path[1] if len(path) > 1 else "Other", []).append(ch)
 
     about = epub.EpubHtml(title="About", file_name="about.xhtml")
-    about.content = (
-        '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>About</title></head><body>'
-        f"<h1>{escape(title)}</h1>"
+    about.content = _xhtml_with_css(
+        "About",
+        f"<h1>{escape(he_title)}</h1>"
+        f"<p>{escape(title)}</p>"
         f"<p>Sections included: {len(chapters)} of {len(leaves)}.</p>"
         f"<p>Source: <a href=\"https://www.sefaria.org\">Sefaria</a> public API.</p>"
-        f"<p>{escape(license_note) or 'See sefaria.org/terms for licensing.'}</p>"
-        "</body></html>"
+        f"<p>{escape(license_note) or 'See sefaria.org/terms for licensing.'}</p>",
     )
     book.add_item(about)
 
