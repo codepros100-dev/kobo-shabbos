@@ -1,0 +1,8 @@
+{
+  "status": 0,
+  "image_url": "https://raw.githubusercontent.com/codepros100-dev/kobo-shabbos/dashboard/dashboard.png",
+  "filename": "dashboard",
+  "refresh_rate": 3600,
+  "reset_firmware": false,
+  "update_firmware": false
+}
