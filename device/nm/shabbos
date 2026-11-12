@@ -1,0 +1,4 @@
+# Kobo Shabbos: two entries in the NickelMenu main menu.
+# Shabbos Display: leave it by pressing the power button once (device reboots).
+menu_item :main :Shabbos Display :cmd_spawn :quiet:exec /bin/sh /mnt/onboard/.adds/shabbos/shabbos.sh
+menu_item :main :Sefarim :cmd_spawn :quiet:exec /mnt/onboard/.adds/koreader/koreader.sh

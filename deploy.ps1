@@ -1,148 +1,113 @@
 <#
-.SYNOPSIS
-    One-shot deploy: stage everything needed on a connected Kobo.
+Installs everything onto the Kobo (plugged in, "Connect" tapped, shows up as a drive).
 
-.DESCRIPTION
-    Steps:
-      1. Detect a mounted Kobo drive (KOBOeReader).
-      2. Download NickelMenu's KoboRoot.tgz (latest release) -> .kobo/KoboRoot.tgz.
-      3. Download KOReader's release zip and extract the bundled `fbink`
-         binary (statically-linked ARM ELF).
-      4. Copy fbink + dashboard scripts -> .adds/dashboard/.
-      5. Copy NickelMenu config -> .adds/nm/dashboard.
-      6. Copy library EPUBs -> Library/{01 Tanakh, 02 Siddur, 03 Shas Bavli}.
+  .adds\shabbos\   Shabbos display: script, binaries, offline pages
+  .adds\koreader\  KOReader (the Hebrew-capable reader) + fonts + defaults
+  .adds\sefarim\   The Hebrew library (hidden from the stock reader on purpose)
+  .adds\nm\shabbos NickelMenu entries for both
 
-    After the script finishes: safely eject the Kobo to apply the install.
+Prerequisites already on the device: NickelMenu, and (optional) Kobostuff for curl.
+Re-run any time; it only replaces this project's own files.
 
-.PARAMETER KoboDrive
-    Optional. e.g. "D:". Auto-detected if omitted.
-
-.PARAMETER DashboardUrl
-    Optional. The published-PNG URL the device fetches. Defaults to:
-    https://raw.githubusercontent.com/codepros100-dev/kobo-shabbos/dashboard/dashboard.png
+  .\deploy.ps1               everything
+  .\deploy.ps1 -Skip library,koreader
+  .\deploy.ps1 -KeepAwake    display never sleeps, Wi-Fi stays on (testing over telnet)
 #>
 param(
-    [string]$KoboDrive,
-    [string]$DashboardUrl = "https://raw.githubusercontent.com/codepros100-dev/kobo-shabbos/dashboard/dashboard.png"
+    [string[]]$Skip = @(),
+    [switch]$KeepAwake
 )
-
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$dl   = Join-Path $root "_downloads"
-New-Item -ItemType Directory -Force -Path $dl | Out-Null
+$dl = Join-Path $root '_downloads'
 
-function Find-KoboDrive {
-    Get-Volume |
-        Where-Object { $_.DriveLetter -and $_.DriveType -eq "Removable" } |
-        ForEach-Object {
-            $r = "$($_.DriveLetter):\"
-            if (Test-Path (Join-Path $r ".kobo")) { return $r }
-        } | Select-Object -First 1
+$kobo = (Get-Volume | Where-Object FileSystemLabel -eq 'KOBOeReader' | Select-Object -First 1).DriveLetter
+if (-not $kobo) { throw 'Kobo not found. Plug it in and tap Connect.' }
+$K = "${kobo}:"
+Write-Host "Kobo at $K"
+
+function Write-LF([string]$src, [string]$dst) {
+    $text = [IO.File]::ReadAllText($src) -replace "`r`n", "`n"
+    [IO.File]::WriteAllText($dst, $text, [Text.UTF8Encoding]::new($false))
+}
+function Mirror([string]$src, [string]$dst) {
+    robocopy $src $dst /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:1 | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $src -> $dst" }
 }
 
-if (-not $KoboDrive) {
-    $KoboDrive = Find-KoboDrive
-    if (-not $KoboDrive) {
-        Write-Error "Kobo not detected. Plug in & accept USB connection."
-        exit 1
+# --- Shabbos display ---------------------------------------------------------
+if ('display' -notin $Skip) {
+    Write-Host 'Shabbos display...'
+    $dst = "$K\.adds\shabbos"
+    New-Item -ItemType Directory -Force "$dst\bin" | Out-Null
+    Write-LF "$root\device\shabbos\shabbos.sh" "$dst\shabbos.sh"
+    Copy-Item "$root\device\shabbos\exit.png" $dst -Force
+    $trmnl = "$dl\trmnl-extracted\src\TRMNL\bin"
+    Copy-Item "$trmnl\fbink\fbink", "$trmnl\fbink\fbdepth", "$trmnl\busybox_kobo" "$dst\bin" -Force
+    if (-not (Test-Path "$root\build\pages")) {
+        python "$root\generator\generate_dashboard.py" pack --out-dir "$root\build\pages" --days 400
     }
-} elseif (-not $KoboDrive.EndsWith("\")) { $KoboDrive += "\" }
-
-Write-Host "Kobo at: $KoboDrive"
-
-# 1. NickelMenu
-$nmTgz = Join-Path $dl "nickelmenu.tgz"
-if (-not (Test-Path $nmTgz)) {
-    Write-Host "Fetching NickelMenu latest release..."
-    $rel = Invoke-RestMethod -UseBasicParsing `
-        -Uri "https://api.github.com/repos/pgaskin/NickelMenu/releases/latest" `
-        -Headers @{ "User-Agent" = "kobo-deploy" }
-    $url = ($rel.assets | Where-Object { $_.name -eq "KoboRoot.tgz" })[0].browser_download_url
-    Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $nmTgz
+    Mirror "$root\build\pages" "$dst\pages"
+    if ($KeepAwake) { Set-Content "$dst\DEBUG" 'remove this file for normal (sleeping) operation' }
+    else { Remove-Item "$dst\DEBUG" -ErrorAction SilentlyContinue }
 }
-Copy-Item -Force $nmTgz (Join-Path $KoboDrive ".kobo\KoboRoot.tgz")
-Write-Host "  [1/6] dropped NickelMenu KoboRoot.tgz"
 
-# 2. fbink (extracted from KOReader)
-$fbink = Join-Path $dl "kor\fbink"
-if (-not (Test-Path $fbink)) {
-    Write-Host "Fetching KOReader release for bundled fbink..."
-    $korRel = Invoke-RestMethod -UseBasicParsing `
-        -Uri "https://api.github.com/repos/koreader/koreader/releases/latest" `
-        -Headers @{ "User-Agent" = "kobo-deploy" }
-    $korUrl = ($korRel.assets |
-        Where-Object { $_.name -like "*kobo*.zip" })[0].browser_download_url
-    $korZip = Join-Path $dl "koreader-kobo.zip"
-    if (-not (Test-Path $korZip)) {
-        Invoke-WebRequest -UseBasicParsing -Uri $korUrl -OutFile $korZip
+# --- KOReader ----------------------------------------------------------------
+if ('koreader' -notin $Skip) {
+    Write-Host 'KOReader...'
+    $zip = Get-ChildItem "$dl\koreader-kobo-v*.zip" | Sort-Object Name | Select-Object -Last 1
+    if (-not $zip) { throw "No KOReader zip in $dl" }
+    $stage = "$root\build\koreader-stage"
+    if (-not (Test-Path "$stage\koreader\koreader.sh")) {
+        Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force $stage | Out-Null
+        tar -xf $zip.FullName -C $stage
     }
-    Add-Type -Assembly System.IO.Compression.FileSystem
-    $z = [System.IO.Compression.ZipFile]::OpenRead($korZip)
-    $entry = $z.Entries | Where-Object { $_.FullName -eq "koreader/fbink" }
-    New-Item -ItemType Directory -Force -Path (Join-Path $dl "kor") | Out-Null
-    [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $fbink, $true)
-    $z.Dispose()
-}
+    # /E not /MIR: never delete the reader's own settings, history or bookmarks.
+    robocopy "$stage\koreader" "$K\.adds\koreader" /E /NFL /NDL /NJH /NJS /NP /R:2 /W:1 | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw 'robocopy failed: koreader' }
 
-$dstDash = Join-Path $KoboDrive ".adds\dashboard"
-New-Item -ItemType Directory -Force -Path $dstDash | Out-Null
-Copy-Item -Force $fbink (Join-Path $dstDash "fbink")
-Write-Host "  [2/6] fbink ($(Get-Item (Join-Path $dstDash 'fbink')).Length bytes)"
-
-# 3. shell scripts (LF endings)
-foreach ($f in @("update-dashboard.sh","dashboard-loop.sh")) {
-    $src = Get-Content (Join-Path $root "kobo\bin\$f") -Raw
-    $lf  = $src -replace "`r`n","`n" -replace "`r","`n"
-    [IO.File]::WriteAllBytes((Join-Path $dstDash $f), [Text.Encoding]::UTF8.GetBytes($lf))
-}
-Write-Host "  [3/6] shell scripts (LF endings)"
-
-# 4. dashboard.conf
-$conf = "DASHBOARD_URL=`"$DashboardUrl`"`nREFRESH_SECONDS=3600`nWIFI_WAIT_SECONDS=120`n"
-[IO.File]::WriteAllBytes((Join-Path $dstDash "dashboard.conf"),
-    [Text.Encoding]::UTF8.GetBytes($conf))
-Write-Host "  [4/6] dashboard.conf -> $DashboardUrl"
-
-# 5. NickelMenu config
-$nmDir = Join-Path $KoboDrive ".adds\nm"
-New-Item -ItemType Directory -Force -Path $nmDir | Out-Null
-$nmCfg = @"
-# NickelMenu config -- Shabbos Dashboard menu items
-menu_item :main :Shabbos Dashboard :cmd_spawn :quiet:/bin/sh /mnt/onboard/.adds/dashboard/dashboard-loop.sh
-menu_item :main :Refresh Dashboard :cmd_spawn :quiet:/bin/sh /mnt/onboard/.adds/dashboard/update-dashboard.sh
-menu_item :main :Stop Dashboard :cmd_spawn :quiet:touch /mnt/onboard/.adds/dashboard/STOP
-"@ -replace "`r`n","`n"
-[IO.File]::WriteAllBytes((Join-Path $nmDir "dashboard"),
-    [Text.Encoding]::UTF8.GetBytes($nmCfg))
-Write-Host "  [5/6] NickelMenu config"
-
-# 6. Library
-$libSrc = Join-Path $root "library\output"
-if (Test-Path $libSrc) {
-    $libDst = Join-Path $KoboDrive "Library"
-    New-Item -ItemType Directory -Force -Path $libDst | Out-Null
-    $map = @{
-        "tanakh"     = "01 Tanakh"
-        "siddur"     = "02 Siddur"
-        "shas_bavli" = "03 Shas Bavli"
-    }
-    foreach ($k in $map.Keys) {
-        $catSrc = Join-Path $libSrc $k
-        if (Test-Path $catSrc) {
-            $catDst = Join-Path $libDst $map[$k]
-            New-Item -ItemType Directory -Force -Path $catDst | Out-Null
-            Copy-Item -Force (Join-Path $catSrc "*.epub") $catDst
+    $fonts = "$K\.adds\koreader\fonts\hebrew"
+    New-Item -ItemType Directory -Force $fonts | Out-Null
+    $fstage = "$root\build\fonts"
+    if (-not (Test-Path "$fstage\TaameyFrankCLM-Medium.ttf")) {
+        New-Item -ItemType Directory -Force $fstage | Out-Null
+        foreach ($z in 'TaameyFrankCLM.zip', 'EzraSIL.zip') {
+            $tmp = "$fstage\_$z"; Expand-Archive "$dl\fonts\$z" $tmp -Force
+            Get-ChildItem $tmp -Recurse -Filter *.ttf | Copy-Item -Destination $fstage -Force
+            Remove-Item $tmp -Recurse -Force
         }
+        Copy-Item "$dl\fonts\FrankRuhlLibre.ttf" $fstage -Force
     }
-    $count = (Get-ChildItem $libDst -Recurse -Filter *.epub).Count
-    Write-Host "  [6/6] library: $count EPUBs in $libDst"
-} else {
-    Write-Host "  [6/6] SKIPPED — no library/output. Run library/download_library.py first."
+    Copy-Item "$fstage\*.ttf" $fonts -Force
+
+    # First-run defaults only; never overwrite the user's own settings.
+    $settings = "$K\.adds\koreader\settings.reader.lua"
+    if (-not (Test-Path $settings)) {
+        Write-LF "$root\device\koreader\settings.reader.lua" $settings
+    }
 }
 
-Write-Host ""
-Write-Host "Done. Safely eject the Kobo:"
-Write-Host "  Open File Explorer -> right-click the Kobo drive -> Eject."
-Write-Host "On disconnect the Kobo applies KoboRoot.tgz (NickelMenu install)."
-Write-Host "Then connect to WiFi in Settings -> Wireless connection,"
-Write-Host "and tap 'Shabbos Dashboard' in the main menu."
+# --- Library -----------------------------------------------------------------
+if ('library' -notin $Skip) {
+    Write-Host 'Library...'
+    if (-not (Test-Path "$root\library\output")) { python "$root\library\download_library.py" all }
+    Mirror "$root\library\output" "$K\.adds\sefarim"
+}
+
+# --- NickelMenu + cleanup of the retired setups --------------------------------
+New-Item -ItemType Directory -Force "$K\.adds\nm" | Out-Null
+Write-LF "$root\device\nm\shabbos" "$K\.adds\nm\shabbos"
+foreach ($old in "$K\.adds\nm\trmnl", "$K\.adds\nm\dashboard", "$K\.adds\TRMNL", "$K\.adds\dashboard",
+                 "$K\Library\01 Tanakh", "$K\Library\02 Siddur", "$K\Library\03 Shas Bavli",
+                 "$K\fonts\NotoSansHebrew-Regular.ttf", "$K\fonts\NotoSansHebrew-Bold.ttf") {
+    if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force; Write-Host "  removed old $old" }
+}
+foreach ($dir in "$K\Library", "$K\fonts") {
+    if ((Test-Path $dir) -and -not (Get-ChildItem $dir -Force)) { Remove-Item $dir }
+}
+
+Write-Host 'Done. Eject the Kobo; the menu (bottom right of the home screen) has both entries.'
+
+# robocopy leaves a non-zero "files copied" code behind; that is success.
+exit 0

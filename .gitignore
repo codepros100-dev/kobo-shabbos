@@ -25,3 +25,7 @@ Thumbs.db
 .DS_Store
 generator/test_dashboard.png
 library/*.log
+
+# Build staging (offline pages, unpacked KOReader, fonts)
+build/
+tools/.kobo-ip
