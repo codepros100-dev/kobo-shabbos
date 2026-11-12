@@ -86,9 +86,11 @@ Verified on the device 2026-11-12 (firmware 4.38.23852), via telnet + screenshot
   has **not** been exercised on the device yet.
 - KOReader opens Bereishis in Taamey Frank CLM with nikud and te'amim placed correctly.
 
+- Workflow pushed; the push-triggered run published a correct live page (Hebrew shaped
+  properly on the Linux runner).
+
 Not verified: page-turn direction in KOReader (Hebrew UI, no `inverse_reading_order` set),
-the live page path end to end (nothing is published yet, the device gets 404 and falls back
-to offline pages), battery life over a full Shabbos. The workflow push needs
-`gh auth refresh -s workflow`.
+the device actually fetching the live page (it was only tested before anything was
+published), the hourly schedule firing, battery life over a full Shabbos.
 
 Test hooks in `.adds/shabbos/config`: `NAP_OVERRIDE=150`, `MAX_CYCLES=3`.
