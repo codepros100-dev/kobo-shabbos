@@ -6,7 +6,7 @@ A Kobo Clara HD (N249, 1072×1448, firmware 4.38+) used for two things:
    candle lighting, havdalah, Rabbeinu Tam, plus weather (live) or the day's zmanim (offline).
 2. **Sefarim** — Tanakh, Siddur Ashkenaz and Shas in Hebrew, read in KOReader.
 
-User: frum, Brooklyn, Windows 11, .NET developer, not a Linux person. Prefers Hebrew in
+User: frum, Lakewood NJ, Windows 11, .NET developer, not a Linux person. Prefers Hebrew in
 anything user-facing, short answers, one proposed action at a time.
 
 ## Why v1 and v2 failed (do not repeat)

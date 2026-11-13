@@ -353,10 +353,10 @@ def render_page(cfg: dict[str, Any], cal: Calendar, day: dt.date, *,
     if weather is not None and now is not None:
         unit = cfg.get("temperature_unit", "celsius")
         draw_weather(c, weather, now, y, "°F" if unit == "fahrenheit" else "°C")
-        footer = f"עודכן {now.strftime('%H:%M')}"
+        footer = f"{cfg.get('city_he', '')}  ·  עודכן {now.strftime('%H:%M')}"
     else:
         draw_zmanim(c, cal, day, y)
-        footer = cfg.get("city_he", "ברוקלין")
+        footer = cfg.get("city_he", "")
     c.text((c.w // 2, c.h - 44), footer, 26, 400)
     img = c.img
     if disp.get("rotate", 0):
