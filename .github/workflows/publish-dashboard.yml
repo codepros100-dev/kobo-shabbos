@@ -4,7 +4,10 @@ name: publish-dashboard
 # branch, which the Kobo fetches from raw.githubusercontent.com.
 on:
   schedule:
-    - cron: "7 * * * *"   # UTC; the device refreshes at :25
+    # GitHub drops most scheduled runs on small repos (observed: 3 of 22 hourly
+    # runs fired), so ask four times an hour; a render takes ~20 s.
+    # The device refreshes at :25 and ignores a page older than 3 h.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
